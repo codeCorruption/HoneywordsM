@@ -1,0 +1,121 @@
+(* Honeywords OTP protocol disregarding atomicity in the HC *)
+
+(* In this model we do not block access to file while HC performs its task, therefore an attack is found.
+   To prevent it, the HC operations must be considered as an atomic block of execution *)
+	
+type hashed.
+type index.
+type counter.
+type rowHw.
+
+(* channels all accesible to the LS *)
+free ulc:channel.
+free luc:channel.
+free lhc:channel.
+free hlc:channel.
+
+(* the file containing the user and the row of sweetwords *)
+table file(bitstring,rowHw).
+
+set traceDisplay = long.
+
+
+(* the index of hashed in rowHw *)
+fun indexOfHw(hashed,rowHw): index[private].
+(* the hash of the word in the 1st arg, using the OTP given as 2nd arg *)
+fun hashWord(bitstring,bitstring): hashed[private].
+(*  An OTP generated with a given seed (counter) *)
+fun getOTP(counter): bitstring[private].
+(* Updates the seed of the OTP *)
+fun next(counter): counter[private].
+
+(* A rowHw shuffled and encripted for the user in 1st arg, using the seed in 2nd arg *)
+fun shuffleNencrypt(bitstring,counter):rowHw[private].
+
+(*  Comparison of indexes in the honeychecker *)
+fun checkEqual(index, index): bool
+reduc
+	forall u:bitstring, w:bitstring, n:counter; 
+		checkEqual(indexOfHw(hashWord(w,getOTP(n)),shuffleNencrypt(u,n)), indexOfHw(hashWord(w,getOTP(n)),shuffleNencrypt(u,n))) = true
+	otherwise forall x:index, y:index; checkEqual(x, y) = false[private].
+
+(* Reshuffles and rehashes the row corresponding to a given index 
+	and  returns the corresponding new index in the updated row *)
+fun reshuffledNhashed(index):index
+reduc 
+	forall u:bitstring, w:bitstring, n:counter; 
+		reshuffledNhashed(indexOfHw(hashWord(w,getOTP(n)),shuffleNencrypt(u,n))) 
+							= indexOfHw(hashWord(w,getOTP(next(n))),shuffleNencrypt(u,next(n)))[private].
+
+(*  Obtains the user out of an index term *)
+reduc forall un:bitstring, pwd:hashed, x:counter; getUser(indexOfHw(pwd,shuffleNencrypt(un,x))) = un[private].
+(*  Obtains the seed out of an index term *)
+reduc forall z:rowHw, y:bitstring, n:counter; getCounter(indexOfHw(hashWord(y,getOTP(n)),z)) = n[private].
+
+
+(* The given index matches with the one in the HC db for the corresponding user *)
+event correctIndex(index). 
+(* 'hashed' has index 'index' in 'rowHw' *)
+event indexFound(index,hashed,rowHw).
+(* the user in the 1st arg logs in using the word in the 2nd arg *)
+event usrLogged(bitstring,bitstring).
+(*  Marks a point not expected to be reached in the analysis *)
+event unreachable.
+
+query u:bitstring, j:index, p:bitstring, x:bitstring, y:counter;
+	event(correctIndex(j)) ==> inj-event(usrLogged(u,p)) && inj-event(indexFound(j, hashWord(p,x), shuffleNencrypt(u,y))).
+
+query event(unreachable).
+
+
+(** Protocol **)
+
+let user(u:bitstring, p:bitstring, n:counter) =
+	let hshp = hashWord(p,getOTP(n)) in
+		event usrLogged(u,p);
+		out (ulc, (u, hshp));
+	in(luc,b:bool).
+
+let loginService =
+	in(ulc, (u:bitstring, w:hashed));
+	get file(=u,rowUser) in
+	let j = indexOfHw(w,rowUser) in
+		event indexFound(j,w,rowUser);
+		out(lhc, (j,rowUser));
+		in(hlc, x:bool);
+		out(luc, x).
+
+(* the honeychecker keeps running with the updated index
+	it is not expected a positive answer from the checkEqual function *)
+let honeychecker1(c:index) =
+	in(lhc, y:index);
+	let z = checkEqual(y,c) in
+	out(hlc, z);
+	if z then
+		event unreachable.
+
+let honeychecker(c:index) =
+	in(lhc, (y:index));
+	let z = checkEqual(y,c) in
+	out(hlc, z);
+	if z then 
+		event correctIndex(y);		
+		(* this models that the LS receives the reshuffled row *)
+		 out(hlc,(getUser(y),shuffleNencrypt(getUser(y),next(getCounter(c))))); 
+		 insert file(getUser(y),shuffleNencrypt(getUser(y),next(getCounter(c))));
+		honeychecker1(reshuffledNhashed(c)).
+
+
+(* Here multiple instances of the HC represent that it is able to process many LS requests in parallel;
+	this is not indeed the expected implementation, we use it to analyse the behavior under the parallel assumption.
+	There is an attack when the LS asks for the vefification of the same index before the user row is reshuffled
+	and sent back to it *)
+process
+	(!(new usrname: bitstring;
+	new pwd: bitstring; 
+	new i:counter;
+	insert file(usrname,shuffleNencrypt(usrname,i));
+	user(usrname,pwd,i)|
+	(!honeychecker(indexOfHw(hashWord(pwd,getOTP(i)),shuffleNencrypt(usrname,i)))) 
+	))|
+	(!loginService)
