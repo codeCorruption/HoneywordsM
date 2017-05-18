@@ -11,7 +11,7 @@ FILES
 + newProtocolOTP.pv : The model of the solution proposed in Section 4 of the paper 255. This code is used for the analysis in section "5.2 Analysis of the new protocol"
 + newProtocolOTPnotAtomic.pv : A modified version of the model in 'newProtocolOTP.pv'; here, the HC processes multiple requests of LS in parallel. This code is mentioned in section "5.2 Analysis of the new protocol"
 
-The folder "Results" contains the attacks found in the verification of "originalHw.pv" and in "newProtocolOTPnotAtomic.pv".
+The folder "Results" contains the attacks found in the verification of "originalHw.pv" (traceCodCorr.pdf) and of "newProtocolOTPnotAtomic.pv" (traceNotAtomic.pdf).
 
 
 -----------------------
