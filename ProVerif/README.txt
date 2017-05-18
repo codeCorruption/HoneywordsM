@@ -15,6 +15,7 @@ In the 'src' folder:
  + newProtocolOTPnotAtomic.pv : A modified version of the model in 'newProtocolOTP.pv'; here, the HC processes multiple requests of LS in parallel. This code is mentioned in section "5.2 Analysis of the new protocol"
 
 In the 'Results' folder:
+
  + traceCodCorr.pdf contains the attack found in the verification of "originalHw.pv" 
  + traceNotAtomic.pdf contains the attack found in the verification of "newProtocolOTPnotAtomic.pv"
 
