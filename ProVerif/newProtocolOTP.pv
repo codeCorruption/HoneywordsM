@@ -1,0 +1,133 @@
+(* Honeywords OTP protocol  *)
+
+(* This model corresponds to the analysis in section "5.2 Analysis of the new protocol"
+	of the paper  "A Secure Honeywords System Despite a Code-Corrupted Login Server" *)
+
+type hashed.
+type index.
+type counter.
+type rowHw.
+
+(* channels all accesible to the LS *)
+free ulc:channel.
+free luc:channel.
+free lhc:channel.
+free hlc:channel.
+
+(* The file containing the user and the row of sweetwords *)
+table file(bitstring,rowHw).
+
+set traceDisplay = long.
+
+
+(* The index of  a sweetword (hashed) in a row of sweetwords (rowHw) *)
+fun indexOfHw(hashed,rowHw): index[private].
+(* The hash of the word in the 1st arg, using the OTP given as 2nd arg *)
+fun hashWord(bitstring,bitstring): hashed[private].
+(*  An OTP generated with a given seed (counter) *)
+fun getOTP(counter): bitstring[private].
+(*  Increases the seed of the OTP *)
+fun next(counter): counter[private].
+
+(* A rowHw shuffled and hashed for the user in 1st arg, using the seed in 2nd arg *)
+fun shuffleNhash(bitstring,counter):rowHw[private].
+
+(*  Indexes comparison in the honeychecker *)
+fun checkEqual(index, index): bool
+reduc
+	forall u:bitstring, w:bitstring, n:counter; 
+		checkEqual(indexOfHw(hashWord(w,getOTP(n)),shuffleNhash(u,n)), indexOfHw(hashWord(w,getOTP(n)),shuffleNhash(u,n))) = true
+	otherwise forall x:index, y:index; checkEqual(x, y) = false[private].
+
+(* Reshuffles and rehashes the row corresponding to a given index 
+	and  returns the corresponding new index  in the updated row*)
+fun reshuffledNhashed(index):index
+reduc 
+	forall u:bitstring, w:bitstring, n:counter; 
+		reshuffledNhashed(indexOfHw(hashWord(w,getOTP(n)),shuffleNhash(u,n))) 
+							= indexOfHw(hashWord(w,getOTP(next(n))),shuffleNhash(u,next(n)))[private].
+
+(*  Obtains the user out of an index term *)
+reduc forall un:bitstring, pwd:hashed, x:counter; getUser(indexOfHw(pwd,shuffleNhash(un,x))) = un[private].
+(*  Obtains the seed out of an index term *)
+reduc forall z:rowHw, y:bitstring, n:counter; getCounter(indexOfHw(hashWord(y,getOTP(n)),z)) = n[private].
+
+(** --------- **)
+(* This reduc can be used by the honeychecker to verify that attacks occur if the LS knows other values.
+	By default is commented
+reduc forall h:hashed,r:rowHw; getHash(indexOfHw(h,r))=h[private].
+*)
+(** ----- **)
+
+
+(* The given index matches with the one in the HC db for the corresponding user *)
+event correctIndex(index). 
+(* 'hashed' has index 'index' in 'rowHw' *)
+event indexFound(index,hashed,rowHw).
+(* The user in the 1st arg logs in using the word in the 2nd arg *)
+event usrLogged(bitstring,bitstring).
+(*  Marks a point not expected to be reached in the analysis *)
+event unreachable.
+
+
+(* Properties to prove, described in the paper *)
+query u:bitstring, j:index, p:bitstring, x:bitstring, y:counter;
+	event(correctIndex(j)) ==>  inj-event(usrLogged(u,p)) && inj-event(indexFound(j, hashWord(p,x), shuffleNhash(u,y))).
+
+query event(unreachable).
+
+
+(** Protocol **)
+
+let user(u:bitstring, p:bitstring, n:counter) =
+	let hshp = hashWord(p,getOTP(n)) in
+		event usrLogged(u,p);
+		out (ulc, (u, hshp));
+	in(luc,b:bool).
+
+let loginService =
+	in(ulc, (u:bitstring, w:hashed));
+	get file(=u,rowUser) in
+	let j = indexOfHw(w,rowUser) in
+		event indexFound(j,w,rowUser);
+		out(lhc, (j,rowUser));
+		in(hlc, x:bool);
+		out(luc, x).
+
+(* the honeychecker keeps running with the updated index
+	it is not expected a positive answer from the checkEqual function *)
+let honeychecker1(c:index) =
+	in(lhc, y:index);
+	let z = checkEqual(y,c) in
+	out(hlc, z);
+	if z then
+		event unreachable.
+
+let honeychecker(c:index) =
+	in(lhc, (y:index));
+	(* only when z is true, otherwise, the OTP of the hc desynchronizes with that of the user, given that a false value
+	represents a honeyword submission *)
+	let z = checkEqual(y,c) in
+	out(hlc, z);
+	if z then 
+		insert file(getUser(y),shuffleNhash(getUser(y),next(getCounter(c))));
+		(* this models that the LS receives the reshuffled row *)
+		 out(hlc,(getUser(y),shuffleNhash(getUser(y),next(getCounter(c))))); 
+		 (*** This is commented on purpose and used to prove attacks  ***
+		 if the attacker gets to know either the new index or the new hashed password,
+		  the security is broken 
+		 out(hlc,reshuffledNhashed(c));  
+		 out(hlc,getHash(reshuffledNhashed(c))); *)
+		event correctIndex(y);
+		honeychecker1(reshuffledNhashed(c)).
+
+
+process
+	(!(new usrname: bitstring;
+	new pwd: bitstring; 
+	new i:counter;
+	insert file(usrname,shuffleNhash(usrname,i));
+	user(usrname,pwd,i)|
+	honeychecker(indexOfHw(hashWord(pwd,getOTP(i)),shuffleNhash(usrname,i))) 
+	))|
+	(!loginService)

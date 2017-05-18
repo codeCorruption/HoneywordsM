@@ -1,0 +1,77 @@
+(* Honeywords' protocol *)
+
+(* This is the model described in section
+	5.1 Analysis of the original Honeywords System protocol
+	of the paper  "A Secure Honeywords System Despite a Code-Corrupted Login Server" *)
+
+type index.
+type hpwd.
+
+(* global var *)
+free ulc:channel[private].
+free luc:channel[private].
+free lhc:channel.
+free hlc:channel.
+
+set traceDisplay = long.
+
+
+(* Denotes the index of a hashed word in the row of sweetwords for a certain user
+	bitstring: an user U
+	hpwd: a sweetword to search in the row of U's sweetwords
+	*)
+fun indexOfHw(bitstring, hpwd): index[private].
+
+(* Simulates a successful indexes comparison in the honeychecker
+	bitstring: an user U
+	index: the index to compare with the one stored in HC for user U*)
+fun check(bitstring, index): bool
+reduc
+	forall x:bitstring, y:hpwd; check(x, indexOfHw(x,y)) = true
+	otherwise forall x:bitstring, y:index; check(x, y) = false[private].
+
+
+(* The given index matches with the one in the HC db for the given user  (1st arg) *)
+event correctIndex(bitstring,index). 
+(* bitstring: an user U
+	hpwd: a sweetword P
+	index: an index Idx 
+	P is in the position Idx, in the row of U's sweetwords  *)
+event indexFound(bitstring,hpwd,index). 
+(* A user logged in with user=1st arg and pwd=2nd arg *)
+event usrLogged(bitstring,hpwd). 
+(* The password in hpwd corresponds to the user in bitstring*)
+event successfulCredentials(bitstring,hpwd).
+
+
+(* Property to prove, explained in the paper *)
+query u:bitstring, j:index, p:hpwd; event(correctIndex(u,j)) ==> inj-event(indexFound(u,p,j)) && inj-event(usrLogged(u,p)). 
+
+
+(** Protocol split by actors **) 
+
+let loginService =
+	in(ulc, (u:bitstring, p:hpwd));
+	let j = indexOfHw(u,p) in
+		event indexFound(u,p,j)[u,p,j];
+		out(lhc, (u,j));
+		in(hlc, x:bool);
+		if x then event successfulCredentials(u,p);
+		out(luc, x).
+
+let honeychecker =
+	in(lhc, (x:bitstring, y:index));
+	let z = check(x,y) in
+	if z then event correctIndex(x,y)[x,y];
+	out(hlc, z).
+
+let user =
+	new usrname: bitstring;
+	new pwd: hpwd; 
+	event usrLogged(usrname,pwd);
+	out(ulc, (usrname, pwd));
+	in(luc,r:bool).
+	
+
+process
+	(!user) | (!loginService) | (!honeychecker) 
