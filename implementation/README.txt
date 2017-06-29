@@ -1,4 +1,4 @@
-ESORICS/implementation
+HoneywordsM/implementation
 
 This folder contains the code in C# referred in Section 6 of the paper, for the original Honeywords protocol as well as for the improved proposal.
 
