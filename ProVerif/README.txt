@@ -1,4 +1,4 @@
-ESORICS/ProVerif
+HoneywordsM/ProVerif
 
 This folder contains the formal models of the Honeywords System's protocols mentioned in the paper "A Secure Honeywords System Despite a Code-Corrupted Login Server". This paper is submission number 255 to ESORICS 2017.
 The code is intended to be analysed using ProVerif verifier (http://prosecco.gforge.inria.fr/personal/bblanche/proverif/).
