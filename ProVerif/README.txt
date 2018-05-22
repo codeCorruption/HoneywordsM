@@ -20,24 +20,6 @@ In the 'Results' folder:
  + traceNotAtomic.pdf contains the attack found in the verification of "newProtocolOTPnotAtomic.pv"
 
 
------------------------
-EXECUTION
-
-The code can be executed with a Proverif installation as follows:
-
-To get only the final result:
-	$ proverif  originalHw.pv | grep RES
-	$ proverif  newProtocolOTP.pv | grep RES
-	$ proverif  newProtocolOTPnotAtomic.pv | grep RES
-	
-For the files where properties are false:
-To get an explained trace:
-	$ proverif -color originalHw.pv
-
-To generate a PDF with the trace (the PDF will be saved in the Results folder):
-	$ proverif -color -graph Results/ originalHw.pv
-	
-
 -----------------------------	
 REFERENCES
 [1] Juels, A., Rivest, R.L.: Honeywords: Making password-cracking detectable. In: Proceedings of the 2013 ACM SIGSAC conference on Computer & communications security. pp. 145{160. ACM (2013)
