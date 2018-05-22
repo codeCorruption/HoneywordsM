@@ -1,0 +1,81 @@
+(* Setup OTP protocol  *)
+
+(* This model corresponds to the New Setup Protocol introduced in the
+extended paper "A Critical Security Analysis of the Password-based Authentication
+Honeywords System Under Code-Corruption Attack" *)
+
+type userId.
+type hashed.
+type index.
+type counter.
+type listOfHashes.
+
+(* this being private prevents the ls to send messages without a user *)
+free ulc:channel[private].
+free lhc:channel.
+free hlc:channel[private].
+
+free p: bitstring[private]. (* the new password *)
+query attacker(p).
+
+(* The file containing the user and the row of hashed words *)
+table file(userId,listOfHashes).
+
+set traceDisplay = long.
+
+
+(* The hash of the word in the 1st arg, using the OTP given as 2nd arg *)
+fun generateRandomHashes(counter): listOfHashes[private].
+fun createDecoys(hashed,listOfHashes): listOfHashes[private].
+fun indexOf(hashed, listOfHashes): index[private].
+fun uId(bitstring): userId.
+fun nextOTP(counter): bitstring[private].
+fun getOTP(counter): bitstring[private].
+fun hashWord(bitstring,bitstring): hashed[private].
+(* A rowHw shuffled and hashed for the user in 1st arg, using the seed in 2nd arg *)
+fun shuffleNhash(listOfHashes,bitstring):listOfHashes[private].
+
+
+(* A user logged in with user=1st arg and pwd=2nd arg *)
+event setupRequest(bitstring,hashed).
+event storedHC(userId,index).
+event saveDecoys(userId,listOfHashes).
+
+
+
+query u:bitstring, p:bitstring, row:listOfHashes, h:hashed, s:counter;
+event(saveDecoys(uId(u),shuffleNhash(row,nextOTP(s)))) ==> inj-event(setupRequest(u,hashWord(p,getOTP(s)))) && inj-event(storedHC(uId(u),indexOf(hashWord(p,getOTP(s)),row))).
+
+(* event(saveDecoys(uId(u),shuffleNhash(row,r))) ==> inj-event(setupRequest(u,h)) && inj-event(saveHC(indexOf(h,row))).  *)
+
+
+(** Protocol **)
+let user(m:counter) =
+	new u: bitstring;
+	(* new p: bitstring; *)
+	let hp = hashWord(p,getOTP(m)) in
+		event setupRequest(u,hp);
+		out (ulc, (u, hp)).
+
+let loginService =
+	in(ulc, (u:bitstring,p:hashed));
+	out(lhc, (uId(u),p));
+	in(hlc, (usr:userId,row:listOfHashes));
+	if usr = uId(u) then
+		insert file(usr,row);
+		event saveDecoys(usr,row).
+
+let honeychecker(m:counter) =
+	in(lhc, (uid:userId,pwd:hashed));
+	let row = createDecoys(pwd,generateRandomHashes(m)) in
+		out(hlc, (uid,shuffleNhash(row,nextOTP(m))));
+	(*	event storedHC(uid,permute(indexOf(pwd,row))).*)
+		event storedHC(uid,indexOf(pwd,row)).
+
+
+process
+	(!(new i:counter;
+	user(i)|
+	honeychecker(i)
+	))|
+	(!loginService)

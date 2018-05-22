@@ -1,0 +1,63 @@
+(* Honeywords' protocol: Setup phase *)
+
+type index.
+type userId.
+type listOfWords.
+type listOfHashes.
+
+(* global var *)
+free ulc:channel[private].
+free lhc:channel.
+
+set traceDisplay = long.
+
+(* Honeychecker's database
+table hcDB(bitstring,index).
+*)
+
+
+(* Denotes the index of a hashed word in the row of sweetwords for a certain user
+	bitstring: an user U
+	pwd: a sweetword to search in the row of U's sweetwords *)
+fun indexOf(bitstring, listOfWords): index[private].
+fun uId(bitstring): userId.
+fun generateSweetwords(bitstring): listOfWords[private].
+fun hash(bitstring,listOfWords): listOfHashes.
+
+(* bitstring: an user U
+	pwd: a sweetword P
+	index: an index Idx
+	P is in the position Idx, in the row of U's sweetwords  *)
+event indexOfPwd(userId,index).
+(* A user logged in with user=1st arg and pwd=2nd arg *)
+event submittedCred(bitstring,bitstring).
+(* The password in pwd corresponds to the user in bitstring*)
+event storedHC(userId,index).
+
+
+(* Property to prove, explained in the paper *)
+query u:bitstring,  p:bitstring, j:index; inj-event(storedHC(uId(u),j)) ==> inj-event(submittedCred(u,p)) && inj-event(indexOfPwd(uId(u),j)).
+
+
+(** Protocol split by actors **)
+let user =
+	new usrname: bitstring;
+	new pwd: bitstring;
+	event submittedCred(usrname,pwd);
+	out(ulc, (usrname, pwd)).
+
+let loginService =
+	in(ulc, (u:bitstring, p:bitstring));
+	let swds = generateSweetwords(p) in
+		(* this step is not  relevant here for the property to be verified, so, it can be omitted *)
+		(* hash(uId(u),swds); *)
+		event indexOfPwd(uId(u),indexOf(p,swds));
+		out(lhc, (uId(u),indexOf(p,swds))).
+
+let honeychecker =
+	in(lhc, (x:userId, y:index));
+	event storedHC(x,y).
+
+
+process
+	(!user) | (!loginService) | (!honeychecker)
