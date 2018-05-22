@@ -1,23 +1,15 @@
 HoneywordsM/ProVerif
 
-This folder contains the formal models of the Honeywords System's protocols mentioned in the paper "A Secure Honeywords System Despite a Code-Corrupted Login Server".
+This folder contains the formal models of the Honeywords System's protocols mentioned in the paper "A Secure Honeywords System Despite a Code-Corrupted Login Server" and those addressed in the extended version "A Critical Security Analysis of the Password-based Authentication Honeywords System Under Code-Corruption Attack".
 The code is intended to be analysed using the ProVerif verifier (http://prosecco.gforge.inria.fr/personal/bblanche/proverif/).
 It contains also the results of the automatic verification of the source models.
 
 
 ----------------------
 FILES
+The 'src' folder contains the models related to the Authentication protocols discussed in the paper published by ICISSP. 'Results' includes the attack traces found for the models in 'src'.
 
-In the 'src' folder:
-
- + originalHw.pv : The code of the model described in section "5.1 Analysis of the original Honeywords System protocol". It corresponds to the original Honeywords system, as proposed in [1].
- + newProtocolOTP.pv : The model of the solution proposed in Section 4 of the paper 255. This code is used for the analysis in section "5.2 Analysis of the new protocol"
- + newProtocolOTPnotAtomic.pv : A modified version of the model in 'newProtocolOTP.pv'; here, the HC processes multiple requests of LS in parallel. This code is mentioned in section "5.2 Analysis of the new protocol"
-
-In the 'Results' folder:
-
- + traceCodCorr.pdf contains the attack found in the verification of "originalHw.pv" 
- + traceNotAtomic.pdf contains the attack found in the verification of "newProtocolOTPnotAtomic.pv"
+In 'ccis18' are the formal models for the Setup and Change of password protocols addressed in the extended version, including the attacks found.
 
 
 -----------------------------	
